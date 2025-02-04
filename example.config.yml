@@ -1,0 +1,142 @@
+# API Gateway Configuration
+# All timeouts are in milliseconds
+# All sizes must include unit (kb, mb, gb)
+
+api_gateway:
+  # List of virtual hosts - each represents a domain entry point
+  virtual_hosts:
+    - # Required: Hostname for the virtual host
+      hostname: api.example.com
+      
+      # Optional: Default settings for this virtual host
+      default_settings:
+        # Optional: Global timeout for all routes (ms)
+        timeout: 30000  # Default: 30000
+        
+        # Optional: Maximum allowed request body size
+        max_body_size: 10mb  # Default: 1mb
+        
+        # Optional: SSL/TLS configuration
+        ssl_settings:
+          enabled: true  # Default: false
+          cert_path: /etc/certs/api.example.com.crt
+          key_path: /etc/certs/api.example.com.key
+        
+        # Optional: CORS settings
+        cors_settings:
+          enabled: true  # Default: false
+          allowed_origins:  # Required if enabled
+            - https://example.com
+          allowed_methods:  # Required if enabled
+            - GET
+            - POST
+            - PUT
+            - DELETE
+          allowed_headers:  # Optional
+            - Authorization
+            - Content-Type
+          expose_headers:  # Optional
+            - X-Request-ID
+          max_age: 3600  # Optional, in seconds
+      
+      # Required: List of routes
+      routes:
+        - # Required: Path pattern to match
+          path: /users/v1
+          
+          # Required: List of allowed HTTP methods
+          methods:  # GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD
+            - GET
+            - POST
+          
+          # Optional: Prefix to strip from path before forwarding
+          strip_prefix: /users/v1
+          
+          # Optional: Header transformations
+          header_transforms:
+            # Optional: Headers to add
+            add:
+              X-Source: api-gateway
+            
+            # Optional: Headers to remove
+            remove:
+              - X-Debug-Token
+            
+            # Optional: Headers to rename
+            rename:
+              X-Old-Name: X-New-Name
+          
+          # Optional: Headers used for routing decisions
+          # If multiple routes match path/method, the one matching these headers is selected
+          routing_headers:
+            X-Version: "2.0"
+          
+          # Optional: List of consumer names allowed to access this route
+          allowed_consumers:
+            - mobile-app
+            - web-portal
+          
+          # Required: Upstream configuration
+          upstream_config:
+            # Required: Strategy for upstream routing
+            # Values: direct (single service), failover (try backup on failure)
+            strategy: failover
+            
+            # Required for failover strategy
+            failover_settings:
+              # Required: Timeout before trying next service (ms)
+              timeout: 5000
+              # Optional: Maximum number of retries
+              max_retries: 3  # Default: 3
+              # Optional: Wait between retries (ms)
+              retry_interval: 1000  # Default: 1000
+            
+            # Required: List of upstream services
+            services:
+              - # Required: URL of the upstream service
+                url: http://users-service-primary:8080
+                
+                # Required for failover: Priority (1 = primary, 2+ = backups)
+                priority: 1
+                
+                # Optional: Authentication configuration for upstream service
+                auth_config:
+                  # Required: Authentication type
+                  # Values: api_key, basic_auth
+                  type: api_key
+                  
+                  settings:
+                    # For type: api_key
+                    header_name: X-Service-Key
+                    key: internal-service-key-123
+                    
+                    # For type: basic_auth
+                    # username: service_user
+                    # password: service_pass
+              
+              - url: http://users-service-backup:8080
+                priority: 2
+                auth_config:
+                  type: basic_auth
+                  settings:
+                    username: backup_service
+                    password: backup_pass_123
+
+  # Required: List of API consumers
+  api_consumers:
+    - # Required: Unique name for the consumer
+      name: mobile-app
+      
+      # Required: API key for authentication
+      key: mobile-app-key-789
+      
+      # Optional: Rate limiting configuration
+      rate_limits:
+        # Required if rate_limits specified: Max requests per second
+        requests_per_second: 100
+        # Optional: Burst limit
+        burst: 200  # Default: 2x requests_per_second
+      
+      # Required: Consumer status
+      # Values: active, inactive
+      status: active
